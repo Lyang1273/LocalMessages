@@ -1,8 +1,36 @@
 import tkinter
 import sys
 
+def quitLocalMessages():
+    sys.exit(0)
+
+def connectWindow():
+    connect = tkinter.Tk()
+    connect.title("Local Messages")
+    connect.geometry("300x200")
+
+    connect.protocol("WM_DELETE_WINDOW", quitLocalMessages)
+
+    ip_label = tkinter.Label(connect, text="IP地址")
+    ip_label.pack(side="top", pady=(20, 0))
+
+    ip_entry = tkinter.Entry(connect)
+    ip_entry.pack(side="top", pady=2)
+
+    port_label = tkinter.Label(connect, text="端口号")
+    port_label.pack(side="top", pady=2)
+
+    port_entry = tkinter.Entry(connect)
+    port_entry.pack(side="top", pady=2)
+
+    connect_button = tkinter.Button(connect, text="连接", width=8, command=lambda: connect.destroy())
+    connect_button.pack(side="bottom", pady=20)
+
+    connect.mainloop()
 
 def start():
+    connectWindow()
+
     home = tkinter.Tk()
     home.title("Local Messages")
     home.geometry("800x500")
