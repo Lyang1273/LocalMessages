@@ -1,8 +1,25 @@
 import tkinter
 import sys
+from LocalMessagesGUI.connect_window import ConnectWindow
+
 
 def quitLocalMessages():
     sys.exit(0)
+
+def main():
+    root = tkinter.Tk()
+    root.withdraw()
+
+    connect = ConnectWindow(root, on_success = lambda: main_window(root))
+
+    root.mainloop()
+
+
+def main_window(root):
+    from LocalMessagesGUI.chat_window import ChatWindow
+    root.deiconify()
+    ChatWindow(root)
+
 
 def connectWindow():
     connect = tkinter.Tk()
