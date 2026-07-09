@@ -3,6 +3,7 @@ from tkinter import messagebox, scrolledtext, Menu
 from datetime import datetime
 from network import NetworkClient
 
+
 class ChatGUI:
     def __init__(self):
         # 主窗口（登录窗口）

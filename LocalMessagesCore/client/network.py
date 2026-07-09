@@ -2,6 +2,7 @@ import socket
 import threading
 import json
 
+
 class NetworkClient:
     def __init__(self, on_message, on_close):
         self.sock = None

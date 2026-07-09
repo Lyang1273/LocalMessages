@@ -1,5 +1,6 @@
 import threading
 
+
 class ClientManager:
     def __init__(self):
         self._clients = {}  # socket -> username

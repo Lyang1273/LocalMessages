@@ -3,6 +3,7 @@ from tkinter import scrolledtext
 from server_core import ChatServerCore
 import threading
 
+
 class ServerGUI:
     def __init__(self, root):
         self.root = root

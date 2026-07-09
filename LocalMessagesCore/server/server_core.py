@@ -5,6 +5,7 @@ from datetime import datetime
 from .manager import ClientManager
 from .broadcaster import Broadcaster
 
+
 class ChatServerCore:
     def __init__(self, host='0.0.0.0', port=5000):
         self.host = host
@@ -78,6 +79,7 @@ class ChatServerCore:
                         break
                     msg = json.loads(data)
                     if msg.get('type') == 'message':
+                        self._log(f"[#] {username}: {msg['content']}")
                         self.broadcaster.broadcast({
                             'type': 'message',
                             'username': username,

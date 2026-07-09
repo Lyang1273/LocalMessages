@@ -7,7 +7,7 @@ class ConnectWindow:
         self.parent = parent
         self.on_success = on_success
         self.window = tkinter.Toplevel(parent)
-        self.window.title("连接至设备")
+        self.window.title("连接至服务器")
         self.window.geometry("300x200")
 
         self.window.protocol("WM_DELETE_WINDOW", self.quitLocalMessages)
@@ -29,8 +29,12 @@ class ConnectWindow:
         self.port_entry = tkinter.Entry(self.window)
         self.port_entry.pack(side="top", pady=2)
 
+        create_server_button = tkinter.Button(self.window, text="创建服务器", relief="flat", fg="blue",
+                                              font=("宋体", 9))
+        create_server_button.pack(side="bottom", pady=(5, 5))
+
         connect_button = tkinter.Button(self.window, text="连接", width=8, command=self.on_connect)
-        connect_button.pack(side="bottom", pady=20)
+        connect_button.pack(side="bottom")
 
     def on_connect(self):
         ip = self.ip_entry.get().strip()
@@ -58,7 +62,8 @@ class ConnectWindow:
             messagebox.showerror("输入错误", "端口号错误。")
             return
 
-        self.window.after(1000, self.connectionSuccess)
+        # 直接调用，传递 ip 和 port 给回调
+        self.connectionSuccess(ip, port)
 
     def _is_valid_ip(self, ip):
         parts = ip.split('.')
@@ -74,10 +79,18 @@ class ConnectWindow:
 
         return True
 
-    def connectionSuccess(self):
+    def connectionSuccess(self, ip=None, port=None):
         self.window.destroy()
         if self.on_success:
-            self.on_success()
+            try:
+                # 尝试按新签名调用回调
+                if ip is not None and port is not None:
+                    self.on_success(ip, port)
+                else:
+                    self.on_success()
+            except TypeError:
+                # 回调不接受参数时的回退
+                self.on_success()
 
     def quitLocalMessages(self):
         import sys
