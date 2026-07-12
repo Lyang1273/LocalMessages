@@ -1,0 +1,42 @@
+name: Build with Nuitka
+
+on: 
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: windows-2019
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.8'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Build Executable with Nuitka (Windows x64)
+        uses: Nuitka/Nuitka-Action@main
+        with:
+          nuitka-version: main
+          script-name: startup.py
+          mode: standalone
+          # onefile: true
+          enable-plugins: tk-inter
+          assume-yes-for-downloads: true  # 重要：自动确认下载依赖工具
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows-Build
+          path: |
+            build/*.exe
+            build/*.dist/**/*
+          include-hidden-files: true
