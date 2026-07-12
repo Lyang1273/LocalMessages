@@ -12,15 +12,18 @@ jobs:
           - os: windows-2022
             platform: Windows
             arch: x64
-            console-mode: disable
+            console-mode: attach
+            output-file: "Local Messages Startup.exe"
           - os: macos-latest
             platform: macOS
             arch: x64
-            console-mode: ''
+            console-mode: disable
+            output-file: "Local Messages Startup"
           - os: ubuntu-22.04
             platform: Linux
             arch: x64
-            console-mode: ''
+            console-mode: disable
+            output-file: "Local Messages Startup"
 
     runs-on: ${{ matrix.os }}
 
@@ -39,24 +42,34 @@ jobs:
           pip install -r requirements.txt
           pip install nuitka
 
+      - name: Install Linux dependencies
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            python3-tk \
+            patchelf \
+            gcc
+
       - name: Build Executable with Nuitka
         uses: Nuitka/Nuitka-Action@main
         with:
           nuitka-version: '2.0'
           script-name: startup.py
-          output-filename: "Local Messages Startup"
-          windows-console-mode: ${{ matrix.console-mode }}
           mode: standalone
           enable-plugins: tk-inter
           assume-yes-for-downloads: true
+          output-file: ${{ matrix.output-file }}
+          windows-console-mode: ${{ matrix.console-mode }}
 
       - name: Set artifact name
         id: artifact
         shell: bash
         run: |
-          BUILD_NUMBER="${{ github.run_id }}"        
+          BUILD_NUMBER="${{ github.run_id }}"
           ARTIFACT_NAME="${{ matrix.platform }} ${{ matrix.arch }} $BUILD_NUMBER"
           echo "display_name=${ARTIFACT_NAME}" >> $GITHUB_OUTPUT
+          
           SAFE_NAME="${{ matrix.platform }}_${{ matrix.arch }}_$BUILD_NUMBER"
           echo "safe_name=${SAFE_NAME}" >> $GITHUB_OUTPUT
 
