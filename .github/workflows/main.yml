@@ -38,7 +38,7 @@ jobs:
           cache: 'pip'
           cache-dependency-path: requirements.txt
 
-      - name: Cache Nuitka
+      - name: Cache Nuitka build artifacts
         uses: actions/cache@v4
         with:
           path: |
@@ -53,24 +53,28 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          pip install nuitka==1.9.10
+          pip install nuitka
 
       - name: Install Linux dependencies
         if: matrix.os == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-tk patchelf gcc
+          sudo apt-get install -y \
+            python3-tk \
+            patchelf \
+            gcc
 
       - name: Build Executable with Nuitka
         uses: Nuitka/Nuitka-Action@main
         with:
-          nuitka-version: '1.9.10'
+          nuitka-version: 'stable'
           script-name: startup.py
           mode: standalone
           enable-plugins: tk-inter
           assume-yes-for-downloads: true
           output-file: ${{ matrix.output-file }}
           windows-console-mode: ${{ matrix.console-mode }}
+          disable-cache: false
 
       - name: Set artifact name
         id: artifact
@@ -79,6 +83,9 @@ jobs:
           BUILD_NUMBER="${{ github.run_id }}"
           ARTIFACT_NAME="${{ matrix.platform }} ${{ matrix.arch }} $BUILD_NUMBER"
           echo "display_name=${ARTIFACT_NAME}" >> $GITHUB_OUTPUT
+          
+          SAFE_NAME="${{ matrix.platform }}_${{ matrix.arch }}_$BUILD_NUMBER"
+          echo "safe_name=${SAFE_NAME}" >> $GITHUB_OUTPUT
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
