@@ -6,7 +6,23 @@ on:
 
 jobs:
   build:
-    runs-on: windows-2022
+    strategy:
+      matrix:
+        include:
+          - os: windows-2022
+            platform: Windows
+            arch: x64
+            console-mode: disable
+          - os: macos-latest
+            platform: macOS
+            arch: x64
+            console-mode: ''
+          - os: ubuntu-22.04
+            platform: Linux
+            arch: x64
+            console-mode: ''
+
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout code
@@ -21,23 +37,33 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
+          pip install nuitka
 
-      - name: Build Executable with Nuitka (Windows x64)
+      - name: Build Executable with Nuitka
         uses: Nuitka/Nuitka-Action@main
         with:
-          nuitka-version: main
+          nuitka-version: '2.0'
           script-name: startup.py
           output-filename: "Local Messages Startup"
-          windows-console-mode: "attach"
+          windows-console-mode: ${{ matrix.console-mode }}
           mode: standalone
           enable-plugins: tk-inter
           assume-yes-for-downloads: true
 
-      - name: Upload Artifacts
+      - name: Set artifact name
+        id: artifact
+        shell: bash
+        run: |
+          BUILD_NUMBER="${{ github.run_id }}"        
+          ARTIFACT_NAME="${{ matrix.platform }} ${{ matrix.arch }} $BUILD_NUMBER"
+          echo "display_name=${ARTIFACT_NAME}" >> $GITHUB_OUTPUT
+          SAFE_NAME="${{ matrix.platform }}_${{ matrix.arch }}_$BUILD_NUMBER"
+          echo "safe_name=${SAFE_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Windows-Build
-          path: |
-            build/*.exe
-            build/*.dist/**/*
+          name: ${{ steps.artifact.outputs.display_name }}
+          path: build/*.dist/
           include-hidden-files: true
+          compression-level: 6
