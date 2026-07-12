@@ -14,6 +14,14 @@ class ClientManager:
         with self._lock:
             return self._clients.pop(sock, None)
 
+    def getout(self, username):
+        with self._lock:
+            for sock, client_name in list(self._clients.items()):
+                if client_name == username:
+                    del self._clients[sock]
+                    return sock
+        return None
+
     def get_users(self):
         with self._lock:
             return list(self._clients.values())

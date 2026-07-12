@@ -33,6 +33,28 @@ class ChatServerCore:
         if cb:
             cb(self.manager.get_users())
 
+    def force_disconnect(self, username):
+        sock = self.manager.getout(username)
+        if sock is None:
+            return False
+
+        try:
+            sock.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+        finally:
+            sock.close()
+
+        self._log(f"[-] {username} was forcefully disconnected")
+        self._update_users()
+        self.broadcaster.broadcast({
+            'type': 'user_left',
+            'username': username,
+            'timestamp': datetime.now().strftime('%H:%M:%S'),
+            'online_users': self.manager.get_users(),
+        })
+        return True
+
     def start(self):
         self.running = True
         self.server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -94,15 +116,16 @@ class ChatServerCore:
             self._log(f"Client error: {e}")
         finally:
             if username:
-                self.manager.remove(sock)
-                self._log(f"[-] {username} disconnected")
-                self._update_users()
-                self.broadcaster.broadcast({
-                    'type': 'user_left',
-                    'username': username,
-                    'timestamp': datetime.now().strftime('%H:%M:%S'),
-                    'online_users': self.manager.get_users()
-                })
+                removed_username = self.manager.remove(sock)
+                if removed_username is not None:
+                    self._log(f"[-] {username} disconnected")
+                    self._update_users()
+                    self.broadcaster.broadcast({
+                        "type": "user_left",
+                        "username": username,
+                        "timestamp": datetime.now().strftime("%H:%M:%S"),
+                        "online_users": self.manager.get_users()
+                    })
             sock.close()
 
     def _cleanup(self):
