@@ -10,7 +10,7 @@ from LocalMessagesGUI.server_window import ServerWindow
 class App:
     def __init__(self):
         self.root = tk.Tk()
-        self.root.title("Local Messages - 登录")
+        self.root.title("Local Messages - pre - 连接服务器")
         self.root.geometry("380x270")
         self.root.resizable(False, False)
 

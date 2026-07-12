@@ -1,0 +1,1 @@
+python -m nuitka --standalone --show-memory --windows-console-mode="attach" --enable-plugins="tk-inter" --output-filename="Local Messages Startup" --main="startup.py"

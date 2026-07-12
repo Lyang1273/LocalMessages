@@ -7,7 +7,7 @@ class ConnectWindow:
         self.parent = parent
         self.on_success = on_success
         self.window = tkinter.Toplevel(parent)
-        self.window.title("连接至服务器")
+        self.window.title("Local Messages - 连接服务器")
         self.window.geometry("300x200")
 
         self.window.protocol("WM_DELETE_WINDOW", self.quitLocalMessages)
@@ -29,8 +29,7 @@ class ConnectWindow:
         self.port_entry = tkinter.Entry(self.window)
         self.port_entry.pack(side="top", pady=2)
 
-        create_server_button = tkinter.Button(self.window, text="创建服务器", relief="flat", fg="blue",
-                                              font=("宋体", 9))
+        create_server_button = tkinter.Button(self.window, text="创建服务器", relief="flat", fg="blue", font=("宋体", 9))
         create_server_button.pack(side="bottom", pady=(5, 5))
 
         connect_button = tkinter.Button(self.window, text="连接", width=8, command=self.on_connect)

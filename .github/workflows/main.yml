@@ -27,10 +27,11 @@ jobs:
         with:
           nuitka-version: main
           script-name: startup.py
+          output-filename: "Local Messages Startup"
+          windows-console-mode: "attach"
           mode: standalone
-          # onefile: true
           enable-plugins: tk-inter
-          assume-yes-for-downloads: true  # 重要：自动确认下载依赖工具
+          assume-yes-for-downloads: true
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4

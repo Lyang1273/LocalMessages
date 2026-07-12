@@ -1,4 +1,3 @@
-# ... existing code ...
 import tkinter as tk
 from tkinter import scrolledtext, Menu
 from datetime import datetime
@@ -11,7 +10,7 @@ class ChatWindow:
         self.username = username
         self.on_close = on_close
 
-        self.root.title("Local Messages - 聊天")
+        self.root.title("Local Messages - Ver 0.0.0 - 聊天")
         self.root.geometry("800x500")
         self.root.protocol("WM_DELETE_WINDOW", self.close)
 
@@ -86,4 +85,3 @@ class ChatWindow:
         if self.on_close:
             self.on_close()
         self.root.destroy()
-# ... existing code ...

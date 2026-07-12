@@ -9,7 +9,7 @@ class ServerWindow:
         self.server_core = server_core
         self.on_close = on_close
 
-        self.root.title("Local Messages - 服务器管理")
+        self.root.title("Local Messages - Ver 0.0.0 - 服务器管理")
         self.root.geometry("800x500")
         self.root.protocol("WM_DELETE_WINDOW", self.close)
 
@@ -25,9 +25,6 @@ class ServerWindow:
         ctrl_frame = tk.Frame(self.root)
         ctrl_frame.pack(fill=tk.X, padx=10, pady=5)
 
-        self.status_label = tk.Label(ctrl_frame, text="服务器运行中", fg="green")
-        self.status_label.pack(side=tk.LEFT, padx=5)
-
         tk.Button(ctrl_frame, text="停止服务器", command=self.close).pack(side=tk.LEFT, padx=5)
 
         main_pane = tk.Frame(self.root)
@@ -35,7 +32,7 @@ class ServerWindow:
 
         left_frame = tk.Frame(main_pane)
         left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        tk.Label(left_frame, text="服务器日志", font=("Arial", 10, "bold")).pack(anchor=tk.W)
+        tk.Label(left_frame, text="服务器日志").pack(anchor=tk.W)
 
         self.server_log_text = scrolledtext.ScrolledText(left_frame, state=tk.DISABLED)
         self.server_log_text.pack(fill=tk.BOTH, expand=True)
@@ -48,7 +45,7 @@ class ServerWindow:
         right_frame.pack(side=tk.RIGHT, fill=tk.Y, padx=(10, 0))
         right_frame.pack_propagate(False)
 
-        tk.Label(right_frame, text="在线用户", font=("Arial", 10, "bold")).pack(anchor=tk.W)
+        tk.Label(right_frame, text="在线用户").pack(anchor=tk.W)
         self.user_listbox = tk.Listbox(right_frame)
         self.user_listbox.pack(fill=tk.BOTH, expand=True)
 
