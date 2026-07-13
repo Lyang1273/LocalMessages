@@ -59,9 +59,9 @@ class ChatWindow:
                 msg["username"] == self.username
             )
         elif typ == "user_joined":
-            self.show_system(f"✓ {msg['username']} 加入了聊天", msg["timestamp"])
+            self.show_system(f"{msg['username']} 加入了聊天", msg["timestamp"])
         elif typ == "user_left":
-            self.show_system(f"✗ {msg['username']} 离开了聊天", msg["timestamp"])
+            self.show_system(f"{msg['username']} 离开了聊天", msg["timestamp"])
 
     def show_message(self, username, content, timestamp, is_own):
         self.msg_display.config(state=tk.NORMAL)

@@ -1,6 +1,7 @@
 import threading
 import tkinter as tk
 from tkinter import messagebox, Frame, Label, Button, Entry
+
 from LocalMessagesCore.client import NetworkClient
 from LocalMessagesCore.server.server_core import ChatServerCore
 from LocalMessagesGUI.chat_window import ChatWindow
@@ -59,7 +60,10 @@ class App:
             cursor="hand2",
         )
         self.server_link_label.pack(pady=(20, 0))
-        self.server_link_label.bind("<Button-1>", lambda e: self._create_server_window())
+        self.server_link_label.bind(
+            "<Button-1>",
+            lambda event: self._create_server_window(),
+        )
 
     def _do_connect(self):
         if self._connecting:
@@ -79,10 +83,13 @@ class App:
 
         try:
             port = int(port_text)
-            if not (1 <= port <= 65535):
+            if not 1 <= port <= 65535:
                 raise ValueError
         except ValueError:
-            messagebox.showwarning("输入错误", "端口必须是 1 到 65535 之间的整数。")
+            messagebox.showwarning(
+                "输入错误",
+                "端口必须是 1 到 65535 之间的整数。",
+            )
             return
 
         self._connecting = True
@@ -103,9 +110,18 @@ class App:
             )
             network.connect(host, port, username)
 
-            self.root.after(0, lambda: self._on_connect_success(network, username))
+            self.root.after(
+                0,
+                self._on_connect_success,
+                network,
+                username,
+            )
         except Exception as exc:
-            self.root.after(0, lambda: self._on_connect_failed(str(exc)))
+            self.root.after(
+                0,
+                self._on_connect_failed,
+                str(exc),
+            )
 
     def _on_connect_success(self, network, username):
         self.network = network
@@ -123,12 +139,18 @@ class App:
         )
 
     def _handle_network_message(self, msg):
-        if self.chat_window is not None:
-            try:
-                if self.chat_window.root.winfo_exists():
-                    self.chat_window.root.after(0, lambda: self.chat_window.handle_message(msg))
-            except Exception:
-                pass
+        if self.chat_window is None:
+            return
+
+        try:
+            if self.chat_window.root.winfo_exists():
+                self.chat_window.root.after(
+                    0,
+                    self.chat_window.handle_message,
+                    msg,
+                )
+        except Exception:
+            pass
 
     def _handle_network_close(self):
         self.root.after(0, self._on_chat_closed)
@@ -136,19 +158,16 @@ class App:
     def _on_connect_failed(self, error_message):
         self._connecting = False
         self.connect_button.config(state=tk.NORMAL)
-        messagebox.showerror("连接失败", f"无法连接到服务器。\n\n{error_message}")
 
-    def _on_connect_failed(self, error_message):
-        self._connecting = False
-        self.connect_button.config(state=tk.NORMAL)
-        messagebox.showerror("连接失败", f"无法连接到服务器。\n\n{error_message}")
+        messagebox.showerror(
+            "连接失败",
+            f"无法连接到服务器。\n\n{error_message}",
+        )
 
     def _on_chat_closed(self):
         if self.network:
             try:
-                disconnect_method = getattr(self.network, "disconnect", None)
-                if callable(disconnect_method):
-                    disconnect_method()
+                self.network.disconnect()
             except Exception:
                 pass
             finally:
@@ -163,7 +182,8 @@ class App:
             finally:
                 self.chat_window = None
 
-        self.root.deiconify()
+        if self.root.winfo_exists():
+            self.root.deiconify()
 
     def _create_server_window(self):
         if self._starting_server:
@@ -180,12 +200,16 @@ class App:
                 self.server_window = None
 
         port_text = self.port_entry.get().strip()
+
         try:
             port = int(port_text)
-            if not (1 <= port <= 65535):
+            if not 1 <= port <= 65535:
                 raise ValueError
         except ValueError:
-            messagebox.showwarning("输入错误", "端口必须是 1 到 65535 之间的整数。")
+            messagebox.showwarning(
+                "输入错误",
+                "端口必须是 1 到 65535 之间的整数。",
+            )
             return
 
         self._starting_server = True
@@ -193,12 +217,14 @@ class App:
 
         try:
             self.server_core = ChatServerCore(host="0.0.0.0", port=port)
+
             server_toplevel = tk.Toplevel(self.root)
             self.server_window = ServerWindow(
                 server_toplevel,
                 self.server_core,
                 on_close=self._close_server,
             )
+
             self.root.withdraw()
 
             self.server_thread = threading.Thread(
@@ -206,23 +232,31 @@ class App:
                 daemon=True,
             )
             self.server_thread.start()
+
         except Exception as exc:
             self._starting_server = False
             self.server_link_label.config(state=tk.NORMAL)
             self.server_core = None
+
             if self.server_window is not None:
                 try:
                     self.server_window.root.destroy()
                 except Exception:
                     pass
-                self.server_window = None
+                finally:
+                    self.server_window = None
+
             messagebox.showerror("服务器启动失败", str(exc))
 
     def _run_server(self):
         try:
             self.server_core.start()
         except Exception as exc:
-            self.root.after(0, lambda: self._on_server_start_failed(str(exc)))
+            self.root.after(
+                0,
+                self._on_server_start_failed,
+                str(exc),
+            )
         finally:
             self.root.after(0, self._on_server_stopped)
 
@@ -244,31 +278,27 @@ class App:
 
         self.server_core = None
         self.server_thread = None
-        self.root.deiconify()
+
+        if self.root.winfo_exists():
+            self.root.deiconify()
 
     def _close_server(self):
         if self.server_core:
             try:
-                stop_method = getattr(self.server_core, "stop", None)
-                if callable(stop_method):
-                    stop_method()
+                self.server_core.stop()
             except Exception:
                 pass
 
     def _quit(self):
         if self.server_core:
             try:
-                stop_method = getattr(self.server_core, "stop", None)
-                if callable(stop_method):
-                    stop_method()
+                self.server_core.stop()
             except Exception:
                 pass
 
         if self.network:
             try:
-                disconnect_method = getattr(self.network, "disconnect", None)
-                if callable(disconnect_method):
-                    disconnect_method()
+                self.network.disconnect()
             except Exception:
                 pass
 
