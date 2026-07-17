@@ -6,19 +6,8 @@ class Broadcaster:
         self.manager = manager
 
     def broadcast(self, message, exclude=None):
-        data = (
-            json.dumps(message, ensure_ascii=False) + "\n").encode("utf-8")
-
-        dead = []
-
-        for sock in self.manager.get_all_sockets():
-            if sock == exclude:
+        for token in self.manager.get_all_tokens():
+            if token == exclude:
                 continue
 
-            try:
-                sock.sendall(data)
-            except OSError:
-                dead.append(sock)
-
-        for sock in dead:
-            self.manager.remove(sock)
+            self.manager.publish(token, message)

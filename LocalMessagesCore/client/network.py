@@ -1,120 +1,198 @@
-import socket
-import threading
 import json
+import threading
+import urllib.error
+import urllib.parse
+import urllib.request
 
 
 class NetworkClient:
     def __init__(self, on_message, on_close):
-        self.sock = None
+        self.base_url = ""
+        self.token = None
         self.running = False
         self.on_message = on_message
         self.on_close = on_close
-        self._recv_buffer = ""
+        self._close_notified = False
 
-    def _send_json(self, message):
-        data = (json.dumps(message, ensure_ascii=False) + "\n").encode("utf-8")
-        self.sock.sendall(data)
+    def _request(self, method, path, payload=None, timeout=30):
+        url = f"{self.base_url}{path}"
+        data = None
 
-    def _receive_json(self):
-        while "\n" not in self._recv_buffer:
-            data = self.sock.recv(4096)
-            if not data:
-                raise ConnectionError("服务器已关闭连接")
-            self._recv_buffer += data.decode("utf-8")
+        headers = {
+            "Accept": "application/json",
+        }
 
-        line, self._recv_buffer = self._recv_buffer.split("\n", 1)
-        return json.loads(line)
+        if payload is not None:
+            data = json.dumps(
+                payload,
+                ensure_ascii=False,
+            ).encode("utf-8")
+            headers["Content-Type"] = "application/json"
+
+        request = urllib.request.Request(
+            url,
+            data=data,
+            headers=headers,
+            method=method,
+        )
+
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                raw_data = response.read()
+        except urllib.error.HTTPError as exc:
+            try:
+                error_data = json.loads(exc.read().decode("utf-8"))
+                message = error_data.get("message", str(exc))
+            except Exception:
+                message = str(exc)
+
+            raise ConnectionError(message) from exc
+        except urllib.error.URLError as exc:
+            raise ConnectionError(
+                f"无法连接服务器：{exc.reason}"
+            ) from exc
+
+        if not raw_data:
+            return {}
+
+        return json.loads(raw_data.decode("utf-8"))
 
     def connect(self, host, port, username):
+        self.base_url = f"http://{host}:{port}"
+        self._close_notified = False
+
         try:
-            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.sock.connect((host, port))
-            self.sock.settimeout(30.0)
+            connection_response = self._request(
+                "POST",
+                "/api/connect",
+                {
+                    "protocol_version": 1,
+                },
+            )
 
-            # 第一阶段：请求建立应用层连接
-            self._send_json({
-                "type": "connection_request",
-                "protocol_version": 1,
-            })
-
-            # 等待服务器返回状态
-            server_response = self._receive_json()
-
-            if server_response.get("type") != "connection_response":
-                raise ConnectionError("服务器返回了无效的连接响应")
-
-            if server_response.get("status") != "ok":
+            if connection_response.get("status") != "ok":
                 raise ConnectionError(
-                    server_response.get("message", "服务器拒绝连接")
+                    connection_response.get(
+                        "message",
+                        "服务器拒绝连接",
+                    )
                 )
 
-            # 第二阶段：发送登录请求
-            self._send_json({
-                "type": "login",
-                "name": username,
-            })
+            self.token = connection_response.get("token")
 
-            # 等待服务器确认登录结果
-            login_response = self._receive_json()
+            if not self.token:
+                raise ConnectionError("服务器未返回连接令牌")
 
-            if login_response.get("type") != "login_response":
-                raise ConnectionError("服务器返回无效的登录响应")
+            login_response = self._request(
+                "POST",
+                "/api/login",
+                {
+                    "token": self.token,
+                    "name": username,
+                },
+            )
 
             if login_response.get("status") != "ok":
                 raise ConnectionError(
-                    login_response.get("message", "登录失败")
+                    login_response.get(
+                        "message",
+                        "登录失败",
+                    )
                 )
 
-            # 只有服务器确认登录成功后，才进入聊天状态
             self.running = True
+
             threading.Thread(
                 target=self._receive_loop,
                 daemon=True,
             ).start()
 
-            return server_response
+            return connection_response
 
-        except Exception as exc:
+        except Exception:
             self._cleanup()
-            raise exc
+            raise
 
     def send(self, content):
-        if not self.running or not self.sock:
+        if not self.running or not self.token:
             return False
 
         try:
-            self._send_json({
-                "type": "message",
-                "content": content,
-            })
-            return True
-        except OSError:
+            response = self._request(
+                "POST",
+                "/api/messages",
+                {
+                    "token": self.token,
+                    "content": content,
+                },
+                timeout=10,
+            )
+            return response.get("status") == "ok"
+        except Exception:
             self._cleanup()
+            self._notify_close()
             return False
 
     def _receive_loop(self):
-        while self.running:
+        while self.running and self.token:
             try:
-                msg = self._receive_json()
-                self.on_message(msg)
-            except socket.timeout:
-                continue
-            except Exception:
-                break
+                query = urllib.parse.urlencode({
+                    "token": self.token,
+                })
+
+                message = self._request(
+                    "GET",
+                    f"/api/events?{query}",
+                    timeout=35,
+                )
+
+                if message.get("type") == "heartbeat":
+                    continue
+
+                self.on_message(message)
+
+                if message.get("type") == "force_disconnected":
+                    break
+
+            except (
+                TimeoutError,
+                ConnectionError,
+                OSError,
+                ValueError,
+            ):
+                if self.running:
+                    break
 
         self._cleanup()
-        self.on_close()
+        self._notify_close()
+
+    def _notify_close(self):
+        if self._close_notified:
+            return
+
+        self._close_notified = True
+
+        try:
+            self.on_close()
+        except Exception:
+            pass
 
     def _cleanup(self):
         self.running = False
-
-        if self.sock:
-            try:
-                self.sock.close()
-            except OSError:
-                pass
-            finally:
-                self.sock = None
+        self.token = None
 
     def disconnect(self):
+        token = self.token
+
+        if token:
+            try:
+                self._request(
+                    "POST",
+                    "/api/disconnect",
+                    {"token": token},
+                    timeout=3,
+                )
+            except Exception:
+                pass
+
         self._cleanup()
