@@ -4,6 +4,17 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from LocalMessagesCore.protocol import (
+    CONNECT_PATH,
+    DISCONNECT_PATH,
+    EVENT_FORCE_DISCONNECTED,
+    EVENT_HEARTBEAT,
+    EVENTS_PATH,
+    LOGIN_PATH,
+    MESSAGES_PATH,
+    PROTOCOL_VERSION,
+)
+
 
 class NetworkClient:
     def __init__(self, on_message, on_close):
@@ -64,9 +75,9 @@ class NetworkClient:
         try:
             connection_response = self._request(
                 "POST",
-                "/api/connect",
+                CONNECT_PATH,
                 {
-                    "protocol_version": 1,
+                    "protocol_version": PROTOCOL_VERSION,
                 },
             )
 
@@ -85,7 +96,7 @@ class NetworkClient:
 
             login_response = self._request(
                 "POST",
-                "/api/login",
+                LOGIN_PATH,
                 {
                     "token": self.token,
                     "name": username,
@@ -120,7 +131,7 @@ class NetworkClient:
         try:
             response = self._request(
                 "POST",
-                "/api/messages",
+                MESSAGES_PATH,
                 {
                     "token": self.token,
                     "content": content,
@@ -142,16 +153,16 @@ class NetworkClient:
 
                 message = self._request(
                     "GET",
-                    f"/api/events?{query}",
+                    f"{EVENTS_PATH}?{query}",
                     timeout=35,
                 )
 
-                if message.get("type") == "heartbeat":
+                if message.get("type") == EVENT_HEARTBEAT:
                     continue
 
                 self.on_message(message)
 
-                if message.get("type") == "force_disconnected":
+                if message.get("type") == EVENT_FORCE_DISCONNECTED:
                     break
 
             except (
@@ -188,7 +199,7 @@ class NetworkClient:
             try:
                 self._request(
                     "POST",
-                    "/api/disconnect",
+                    DISCONNECT_PATH,
                     {"token": token},
                     timeout=3,
                 )

@@ -1,11 +1,12 @@
 import threading
 import tkinter as tk
-from tkinter import messagebox, Frame, Label, Button, Entry
+from tkinter import messagebox, Frame, Label, Button, Entry, ttk
 
 from LocalMessagesCore.client import NetworkClient
 from LocalMessagesCore.server.server_core import ChatServerCore
 from LocalMessagesGUI.chat_window import ChatWindow
 from LocalMessagesGUI.server_window import ServerWindow
+from LocalMessagesGUI.config_window import ServerConfigWindow  # 新增导入
 
 
 class App:
@@ -18,6 +19,7 @@ class App:
         self.network = None
         self.server_core = None
         self.server_thread = None
+        self.server_config = None
         self.username = ""
         self.chat_window = None
         self.server_window = None
@@ -62,8 +64,83 @@ class App:
         self.server_link_label.pack(pady=(20, 0))
         self.server_link_label.bind(
             "<Button-1>",
-            lambda event: self._create_server_window(),
+            lambda event: self._open_server_config(),
         )
+
+    def _open_server_config(self):
+        """打开服务器配置窗口"""
+        if self._starting_server:
+            return
+
+        # 获取当前端口作为默认值
+        default_port = 5000
+        try:
+            default_port = int(self.port_entry.get().strip())
+        except ValueError:
+            pass
+
+        # 打开配置窗口
+        config_window = ServerConfigWindow(
+            self.root,
+            on_confirm=self._start_server_with_config,
+            on_cancel=None
+        )
+
+        # 设置默认端口
+        config_window.port_entry.delete(0, tk.END)
+        config_window.port_entry.insert(0, str(default_port))
+
+    def _start_server_with_config(self, config):
+        """使用配置启动服务器"""
+        if self._starting_server:
+            return
+
+        self.server_config = config
+        self._starting_server = True
+        self.server_link_label.config(state=tk.DISABLED)
+
+        # 更新端口显示
+        self.port_entry.delete(0, tk.END)
+        self.port_entry.insert(0, str(config["port"]))
+
+        try:
+            # 使用配置创建服务器核心
+            self.server_core = ChatServerCore(
+                host=config["host"],
+                port=config["port"],
+                config=config
+            )
+
+            server_toplevel = tk.Toplevel(self.root)
+            self.server_window = ServerWindow(
+                server_toplevel,
+                self.server_core,
+                on_close=self._close_server,
+            )
+
+            self.root.withdraw()
+
+            self.server_thread = threading.Thread(
+                target=self._run_server,
+                daemon=True,
+            )
+            self.server_thread.start()
+
+        except Exception as exc:
+            self._starting_server = False
+            self.server_link_label.config(state=tk.NORMAL)
+            self.server_core = None
+            self.server_config = None
+
+            if self.server_window is not None:
+                try:
+                    self.server_window.root.destroy()
+                except Exception:
+                    pass
+                finally:
+                    self.server_window = None
+
+            messagebox.showerror("服务器启动失败", str(exc))
 
     def _do_connect(self):
         if self._connecting:
@@ -185,69 +262,6 @@ class App:
         if self.root.winfo_exists():
             self.root.deiconify()
 
-    def _create_server_window(self):
-        if self._starting_server:
-            return
-
-        if self.server_window is not None:
-            try:
-                if self.server_window.root.winfo_exists():
-                    self.server_window.root.deiconify()
-                    self.server_window.root.lift()
-                    self.server_window.root.focus_force()
-                    return
-            except Exception:
-                self.server_window = None
-
-        port_text = self.port_entry.get().strip()
-
-        try:
-            port = int(port_text)
-            if not 1 <= port <= 65535:
-                raise ValueError
-        except ValueError:
-            messagebox.showwarning(
-                "输入错误",
-                "端口必须是 1 到 65535 之间的整数。",
-            )
-            return
-
-        self._starting_server = True
-        self.server_link_label.config(state=tk.DISABLED)
-
-        try:
-            self.server_core = ChatServerCore(host="0.0.0.0", port=port)
-
-            server_toplevel = tk.Toplevel(self.root)
-            self.server_window = ServerWindow(
-                server_toplevel,
-                self.server_core,
-                on_close=self._close_server,
-            )
-
-            self.root.withdraw()
-
-            self.server_thread = threading.Thread(
-                target=self._run_server,
-                daemon=True,
-            )
-            self.server_thread.start()
-
-        except Exception as exc:
-            self._starting_server = False
-            self.server_link_label.config(state=tk.NORMAL)
-            self.server_core = None
-
-            if self.server_window is not None:
-                try:
-                    self.server_window.root.destroy()
-                except Exception:
-                    pass
-                finally:
-                    self.server_window = None
-
-            messagebox.showerror("服务器启动失败", str(exc))
-
     def _run_server(self):
         try:
             self.server_core.start()
@@ -278,6 +292,7 @@ class App:
 
         self.server_core = None
         self.server_thread = None
+        self.server_config = None
 
         if self.root.winfo_exists():
             self.root.deiconify()

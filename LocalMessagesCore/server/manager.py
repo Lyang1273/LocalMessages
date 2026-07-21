@@ -3,23 +3,21 @@ import threading
 
 
 class ClientManager:
-    def __init__(self):
+    def __init__(self, max_users=100):
         self._clients = {}
         self._muted_users = set()
         self._lock = threading.Lock()
+        self.max_users = max_users
 
     def add(self, token, username):
         with self._lock:
-            if any(
-                client["username"] == username
-                for client in self._clients.values()
-            ):
+            if len(self._clients) >= self.max_users:
                 return False
 
-            self._clients[token] = {
-                "username": username,
-                "events": queue.Queue(),
-            }
+            if any(client["username"] == username for client in self._clients.values()):
+                return False
+
+            self._clients[token] = {"username": username, "events": queue.Queue()}
             return True
 
     def remove(self, token):
@@ -85,6 +83,10 @@ class ClientManager:
                 else client["username"]
                 for client in self._clients.values()
             ]
+
+    def get_muted_users(self):
+        with self._lock:
+            return list(self._muted_users)
 
     def get_all_tokens(self):
         with self._lock:
