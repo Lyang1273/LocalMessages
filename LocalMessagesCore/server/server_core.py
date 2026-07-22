@@ -1,5 +1,8 @@
 from datetime import datetime
 from http.server import ThreadingHTTPServer
+from pathlib import Path
+
+from LocalMessagesCore.auth import AccountService
 
 from .broadcaster import Broadcaster
 from .chat_service import ChatService
@@ -20,9 +23,17 @@ class ChatServerCore:
         self.heartbeat_timeout = self.config.get("heartbeat_timeout", 25)
         self.server_name = self.config.get("server_name", "LocalMessages")
         self.enable_logging = self.config.get("enable_logging", True)
+        self.account_data_path = self.config.get(
+            "account_data_path",
+            str(Path("data") / f"accounts_{self.port}.json"),
+        )
 
+        self.account_service = AccountService(
+            self.account_data_path,
+            max_username_length=self.max_username_length,
+        )
         self.manager = ClientManager(max_users=self.max_users)
-        self.broadcaster = Broadcaster(self.manager)
+        self.broadcaster = Broadcaster(self.manager, can_receive=self._can_receive_messages)
         self.running = False
         self.server = None
         self.start_time = None
@@ -48,6 +59,14 @@ class ChatServerCore:
         callback = self._callbacks["on_user_list_update"]
         if callback:
             callback(self.manager.get_display_users())
+
+    def _can_receive_messages(self, token):
+        account = self.account_service.get_account_by_token(token)
+        if not account:
+            return False
+        if account.get("status") != "限制":
+            return True
+        return account.get("restrictions", {}).get("can_receive_messages", True)
 
     def start(self):
         if self.running:
@@ -88,3 +107,27 @@ class ChatServerCore:
 
     def is_user_muted(self, username):
         return self.manager.is_muted(username)
+
+    def list_accounts(self):
+        return self.account_service.list_accounts()
+
+    def set_account_status(self, username, status):
+        updated = self.account_service.set_status(username, status)
+        if status == "禁用":
+            self.force_disconnect(username)
+        return updated
+
+    def get_account(self, username):
+        return self.account_service.get_account(username)
+
+    def update_account(self, current_username, username, password, status, restrictions):
+        account = self.account_service.update_account(
+            current_username,
+            username,
+            password,
+            status,
+            restrictions,
+        )
+        if account and (current_username != username or password or status == "禁用"):
+            self.force_disconnect(current_username)
+        return account

@@ -7,13 +7,14 @@ from LocalMessagesCore.server.server_core import ChatServerCore
 from LocalMessagesGUI.chat_window import ChatWindow
 from LocalMessagesGUI.server_window import ServerWindow
 from LocalMessagesGUI.config_window import ServerConfigWindow  # 新增导入
+from LocalMessagesGUI.login_window import SignInWindow
 
 
 class App:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("Local Messages - pre - 连接服务器")
-        self.root.geometry("380x270")
+        self.root.geometry("380x230")
         self.root.resizable(False, False)
 
         self.network = None
@@ -26,37 +27,33 @@ class App:
         self._connecting = False
         self._starting_server = False
 
-        self._setup_login()
+        self._setup_sign_in()
         self.root.protocol("WM_DELETE_WINDOW", self._quit)
 
-    def _setup_login(self):
-        self.login_frame = Frame(self.root)
-        self.login_frame.pack(expand=True, pady=(10, 10))
+    def _setup_sign_in(self):
+        self.sign_in_frame = Frame(self.root)
+        self.sign_in_frame.pack(expand=True, pady=(10, 10))
 
-        Label(self.login_frame, text="服务器:").pack(anchor="w")
-        self.server_entry = Entry(self.login_frame, width=30)
+        Label(self.sign_in_frame, text="服务器:").pack(anchor="w")
+        self.server_entry = Entry(self.sign_in_frame, width=30)
         self.server_entry.insert(0, "127.0.0.1")
         self.server_entry.pack(pady=(0, 10))
 
-        Label(self.login_frame, text="端口:").pack(anchor="w")
-        self.port_entry = Entry(self.login_frame, width=30)
+        Label(self.sign_in_frame, text="端口:").pack(anchor="w")
+        self.port_entry = Entry(self.sign_in_frame, width=30)
         self.port_entry.insert(0, "5000")
         self.port_entry.pack(pady=(0, 10))
 
-        Label(self.login_frame, text="用户名:").pack(anchor="w")
-        self.name_entry = Entry(self.login_frame, width=30)
-        self.name_entry.pack(pady=(0, 15))
-
         self.connect_button = Button(
-            self.login_frame,
-            text="连接",
+            self.sign_in_frame,
+            text="连接服务器",
             command=self._do_connect,
             width=15,
         )
         self.connect_button.pack()
 
         self.server_link_label = Label(
-            self.login_frame,
+            self.sign_in_frame,
             text="创建服务器",
             fg="blue",
             cursor="hand2",
@@ -148,14 +145,9 @@ class App:
 
         host = self.server_entry.get().strip()
         port_text = self.port_entry.get().strip()
-        username = self.name_entry.get().strip()
 
         if not host:
             messagebox.showwarning("输入错误", "请输入服务器地址。")
-            return
-
-        if not username:
-            messagebox.showwarning("输入错误", "请输入用户名。")
             return
 
         try:
@@ -171,27 +163,27 @@ class App:
 
         self._connecting = True
         self.connect_button.config(state=tk.DISABLED)
-        self.username = username
 
         threading.Thread(
             target=self._connect_worker,
-            args=(host, port, username),
+            args=(host, port),
             daemon=True,
         ).start()
 
-    def _connect_worker(self, host, port, username):
+    def _connect_worker(self, host, port):
         try:
             network = NetworkClient(
                 on_message=self._handle_network_message,
                 on_close=self._handle_network_close,
             )
-            network.connect(host, port, username)
+            response = network.connect_server(host, port)
+            if response.get("status") != "ok":
+                raise ConnectionError(response.get("message", "服务器拒绝连接"))
 
             self.root.after(
                 0,
                 self._on_connect_success,
                 network,
-                username,
             )
         except Exception as exc:
             self.root.after(
@@ -200,10 +192,19 @@ class App:
                 str(exc),
             )
 
-    def _on_connect_success(self, network, username):
+    def _on_connect_success(self, network):
         self.network = network
         self._connecting = False
         self.connect_button.config(state=tk.NORMAL)
+        SignInWindow(
+            self.root,
+            self.network,
+            on_sign_in=self._on_sign_in_success,
+            on_cancel=self._on_sign_in_cancelled,
+        )
+
+    def _on_sign_in_success(self, username):
+        self.username = username
 
         self.root.withdraw()
 
@@ -240,6 +241,9 @@ class App:
             "连接失败",
             f"无法连接到服务器。\n\n{error_message}",
         )
+
+    def _on_sign_in_cancelled(self):
+        self.network = None
 
     def _on_chat_closed(self):
         if self.network:

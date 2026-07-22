@@ -2,6 +2,8 @@ import tkinter as tk
 from datetime import datetime
 from tkinter import messagebox, scrolledtext
 
+from .account_windows import AccountListWindow
+
 
 class ServerWindow:
     def __init__(self, root, server_core, on_close=None):
@@ -10,9 +12,10 @@ class ServerWindow:
         self.on_close = on_close
 
         self.root.title("Local Messages - Ver 0.0.0 - 服务器管理")
-        self.root.geometry("800x500")
+        self.root.geometry("960x560")
         self.root.protocol("WM_DELETE_WINDOW", self.close)
 
+        self._build_menu()
         self._build_ui()
 
         if self.server_core:
@@ -20,6 +23,11 @@ class ServerWindow:
                 on_log=self.server_log,
                 on_user_list_update=self.update_user_list,
             )
+
+    def _build_menu(self):
+        menubar = tk.Menu(self.root)
+        self.root.config(menu=menubar)
+        menubar.add_command(label="账户管理", command=self._open_account_manager)
 
     def _build_ui(self):
         ctrl_frame = tk.Frame(self.root)
@@ -53,16 +61,17 @@ class ServerWindow:
         right_frame.pack(side=tk.RIGHT, fill=tk.Y, padx=(10, 0))
         right_frame.pack_propagate(False)
 
-        tk.Label(right_frame, text="在线用户").pack(anchor=tk.W)
+        online_frame = tk.LabelFrame(right_frame, text="在线用户")
+        online_frame.pack(fill=tk.BOTH, expand=True)
 
         self.user_listbox = tk.Listbox(
-            right_frame,
+            online_frame,
             selectmode=tk.SINGLE,
             exportselection=False,
         )
         self.user_listbox.pack(fill=tk.BOTH, expand=True)
 
-        user_action_frame = tk.Frame(right_frame)
+        user_action_frame = tk.Frame(online_frame)
         user_action_frame.pack(fill=tk.X, pady=(8, 0))
 
         self.force_disconnect_button = tk.Button(
@@ -95,6 +104,9 @@ class ServerWindow:
             "<<ListboxSelect>>",
             self._on_user_selected,
         )
+
+    def _open_account_manager(self):
+        AccountListWindow(self.root, self.server_core)
 
     def server_log(self, message):
         if self.root.winfo_exists():

@@ -10,10 +10,17 @@ from LocalMessagesCore.protocol import (
     EVENT_FORCE_DISCONNECTED,
     EVENT_HEARTBEAT,
     EVENTS_PATH,
-    LOGIN_PATH,
     MESSAGES_PATH,
     PROTOCOL_VERSION,
+    SIGN_IN_PATH,
+    SIGN_UP_PATH,
 )
+
+
+class ApiError(Exception):
+    def __init__(self, message, status_code=None):
+        super().__init__(message)
+        self.status_code = status_code
 
 
 class NetworkClient:
@@ -57,7 +64,7 @@ class NetworkClient:
             except Exception:
                 message = str(exc)
 
-            raise ConnectionError(message) from exc
+            raise ApiError(message, status_code=exc.code) from exc
         except urllib.error.URLError as exc:
             raise ConnectionError(
                 f"无法连接服务器：{exc.reason}"
@@ -68,48 +75,51 @@ class NetworkClient:
 
         return json.loads(raw_data.decode("utf-8"))
 
-    def connect(self, host, port, username):
+    def sign_up(self, username, password):
+        response = self._request(
+            "POST",
+            SIGN_UP_PATH,
+            {
+                "username": username,
+                "password": password,
+            },
+        )
+        return response.get("status") == "ok"
+
+    def connect_server(self, host, port):
         self.base_url = f"http://{host}:{port}"
         self._close_notified = False
+        return self._request(
+            "POST",
+            CONNECT_PATH,
+            {
+                "protocol_version": PROTOCOL_VERSION,
+            },
+        )
 
+    def sign_in(self, username, password):
         try:
-            connection_response = self._request(
+            sign_in_response = self._request(
                 "POST",
-                CONNECT_PATH,
+                SIGN_IN_PATH,
                 {
-                    "protocol_version": PROTOCOL_VERSION,
+                    "username": username,
+                    "password": password,
                 },
             )
 
-            if connection_response.get("status") != "ok":
+            if sign_in_response.get("status") != "ok":
                 raise ConnectionError(
-                    connection_response.get(
-                        "message",
-                        "服务器拒绝连接",
-                    )
-                )
-
-            self.token = connection_response.get("token")
-
-            if not self.token:
-                raise ConnectionError("服务器未返回连接令牌")
-
-            login_response = self._request(
-                "POST",
-                LOGIN_PATH,
-                {
-                    "token": self.token,
-                    "name": username,
-                },
-            )
-
-            if login_response.get("status") != "ok":
-                raise ConnectionError(
-                    login_response.get(
+                    sign_in_response.get(
                         "message",
                         "登录失败",
                     )
                 )
+
+            self.token = sign_in_response.get("token")
+
+            if not self.token:
+                raise ConnectionError("服务器未返回登录令牌")
 
             self.running = True
 
@@ -118,11 +128,20 @@ class NetworkClient:
                 daemon=True,
             ).start()
 
-            return connection_response
+            return sign_in_response
 
         except Exception:
             self._cleanup()
             raise
+
+    def connect(self, host, port, username, password):
+        connection_response = self.connect_server(host, port)
+        if connection_response.get("status") != "ok":
+            raise ConnectionError(
+                connection_response.get("message", "服务器拒绝连接")
+            )
+        self.sign_in(username, password)
+        return connection_response
 
     def send(self, content):
         if not self.running or not self.token:
@@ -139,9 +158,16 @@ class NetworkClient:
                 timeout=10,
             )
             return response.get("status") == "ok"
-        except Exception:
+        except ApiError as exc:
+            if exc.status_code in (401, 408, 502, 503, 504):
+                self._cleanup()
+                self._notify_close()
+            return False
+        except (ConnectionError, TimeoutError, OSError):
             self._cleanup()
             self._notify_close()
+            return False
+        except Exception:
             return False
 
     def _receive_loop(self):
@@ -168,6 +194,7 @@ class NetworkClient:
             except (
                 TimeoutError,
                 ConnectionError,
+                ApiError,
                 OSError,
                 ValueError,
             ):
